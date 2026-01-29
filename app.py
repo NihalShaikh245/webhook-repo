@@ -199,6 +199,12 @@ def get_latest_events():
         print(f"Error fetching latest events: {e}")
         return jsonify({'error': 'Failed to fetch events'}), 500
 
+# Add this at the very end of app.py (before if __name__ == '__main__')
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for Render"""
+    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()}), 200
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
