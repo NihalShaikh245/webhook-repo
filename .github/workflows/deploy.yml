@@ -1,0 +1,15 @@
+name: Deploy to Render/Heroku
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Deploy to Render
+        run: |
+          # Render auto-deploys from GitHub
+          echo "Deployment triggered via GitHub push"
