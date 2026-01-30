@@ -2,135 +2,49 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Events Dashboard</title>
+    <title>GitHub Repository Activity</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1><i class="fab fa-github"></i> GitHub Events Dashboard</h1>
-            <p class="subtitle">Real-time monitoring of repository activities</p>
-        </header>
 
-        <div class="dashboard">
-            <div class="stats">
-                <div class="stat-card">
-                    <h3>Total Events</h3>
-                    <p id="total-events">0</p>
-                </div>
-                <div class="stat-card">
-                    <h3>Last Updated</h3>
-                    <p id="last-updated">Just now</p>
-                </div>
-                <div class="stat-card">
-                    <h3>Status</h3>
-                    <p id="status" class="status-connected"><i class="fas fa-circle"></i> Connected</p>
-                </div>
-            </div>
+    <h2>GitHub Repository Activity</h2>
 
-            <div class="events-container">
-                <h2><i class="fas fa-history"></i> Recent Activities</h2>
-                <div class="events-list" id="events-list">
-                    <div class="loading">
-                        <i class="fas fa-spinner fa-spin"></i> Loading events...
-                    </div>
-                </div>
-                <div class="refresh-info">
-                    <i class="fas fa-sync-alt"></i> Auto-refreshing every 15 seconds
-                </div>
-            </div>
-        </div>
-
-        <footer>
-            <p>Monitoring: <span id="repo-name">action-repo</span> | Webhook Receiver Active</p>
-        </footer>
-    </div>
+    <ul id="events">
+        <li>Loading events...</li>
+    </ul>
 
     <script>
-        // Function to fetch and display events
         async function fetchEvents() {
             try {
                 const response = await fetch('/api/events/latest');
-                const events = await response.json();
-                
-                if (events.error) {
-                    document.getElementById('status').innerHTML = '<i class="fas fa-circle"></i> Error';
-                    document.getElementById('status').className = 'status-error';
+                const data = await response.json();
+
+                const list = document.getElementById('events');
+                list.innerHTML = '';
+
+                if (data.length === 0) {
+                    list.innerHTML = '<li>No events yet</li>';
                     return;
                 }
-                
-                const eventsList = document.getElementById('events-list');
-                
-                if (events.length === 0) {
-                    eventsList.innerHTML = `
-                        <div class="empty-state">
-                            <i class="fas fa-inbox"></i>
-                            <p>No events yet. Make a change to your repository!</p>
-                        </div>
-                    `;
-                } else {
-                    eventsList.innerHTML = events.map(event => `
-                        <div class="event-item event-${event.action.toLowerCase()}">
-                            <div class="event-icon">
-                                ${getActionIcon(event.action)}
-                            </div>
-                            <div class="event-content">
-                                <p class="event-message">${event.message}</p>
-                                <div class="event-meta">
-                                    <span class="event-action">${event.action}</span>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('');
-                    
-                    // Update total events count
-                    document.getElementById('total-events').textContent = events.length;
-                }
-                
-                // Update last updated time
-                const now = new Date();
-                document.getElementById('last-updated').textContent = 
-                    now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                    
-                // Update status
-                document.getElementById('status').innerHTML = '<i class="fas fa-circle"></i> Connected';
-                document.getElementById('status').className = 'status-connected';
-                
-            } catch (error) {
-                console.error('Error fetching events:', error);
-                document.getElementById('status').innerHTML = '<i class="fas fa-circle"></i> Disconnected';
-                document.getElementById('status').className = 'status-error';
+
+                data.forEach(event => {
+                    const li = document.createElement('li');
+                    li.textContent = event.message;
+                    list.appendChild(li);
+                });
+
+            } catch (err) {
+                document.getElementById('events').innerHTML =
+                    '<li>Error fetching events</li>';
             }
         }
-        
-        // Function to get appropriate icon for action type
-        function getActionIcon(action) {
-            switch(action) {
-                case 'PUSH':
-                    return '<i class="fas fa-upload"></i>';
-                case 'PULL_REQUEST':
-                    return '<i class="fas fa-code-branch"></i>';
-                case 'MERGE':
-                    return '<i class="fas fa-code-merge"></i>';
-                default:
-                    return '<i class="fas fa-code"></i>';
-            }
-        }
-        
-        // Initial fetch
+
+        // Initial load
         fetchEvents();
-        
-        // Set up polling every 15 seconds
+
+        // Poll every 15 seconds
         setInterval(fetchEvents, 15000);
-        
-        // Manual refresh button (could be added)
-        document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') {
-                fetchEvents();
-            }
-        });
     </script>
+
 </body>
 </html>
