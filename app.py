@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, render_template
 from pymongo import MongoClient
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import hmac
 import hashlib
@@ -10,7 +10,7 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# MongoDB
+# -------------------- MongoDB --------------------
 client = MongoClient(os.getenv("MONGODB_URI"))
 db = client[os.getenv("DATABASE_NAME")]
 collection = db[os.getenv("COLLECTION_NAME")]
@@ -18,6 +18,7 @@ collection = db[os.getenv("COLLECTION_NAME")]
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
 
+# -------------------- Helpers --------------------
 def verify_signature(payload, signature):
     if not WEBHOOK_SECRET:
         return True
@@ -37,12 +38,15 @@ def format_message(event):
 
     if event["action"] == "PUSH":
         return f'{event["author"]} pushed to {event["to_branch"]} on {time}'
+
     if event["action"] == "PULL_REQUEST":
-        return f'{event["author"]} submitted a pull request from {event["from_branch"]} to {event["to_branch"]} on {time}'
+        return f'{event["author"]} opened a pull request from {event["from_branch"]} to {event["to_branch"]} on {time}'
+
     if event["action"] == "MERGE":
-        return f'{event["author"]} merged branch {event["from_branch"]} to {event["to_branch"]} on {time}'
+        return f'{event["author"]} merged {event["from_branch"]} into {event["to_branch"]} on {time}'
 
 
+# -------------------- Routes --------------------
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -61,12 +65,17 @@ def webhook():
     payload = request.json
 
     author = payload.get("sender", {}).get("login", "Unknown")
-    timestamp = datetime.utcnow().isoformat() + "Z"
+    timestamp = datetime.now(timezone.utc).isoformat()
 
+    event = None
+
+    # -------- PUSH --------
     if event_type == "push":
-        branch = payload["ref"].replace("refs/heads/", "")
+        branch = payload.get("ref", "").replace("refs/heads/", "")
+        commit_id = payload.get("head_commit", {}).get("id", "unknown")
+
         event = {
-            "request_id": payload["head_commit"]["id"],
+            "request_id": commit_id,
             "author": author,
             "action": "PUSH",
             "from_branch": branch,
@@ -74,13 +83,14 @@ def webhook():
             "timestamp": timestamp
         }
 
+    # -------- PULL REQUEST --------
     elif event_type == "pull_request":
         pr = payload["pull_request"]
         action = payload["action"]
 
         if action == "opened":
             action_type = "PULL_REQUEST"
-        elif action == "closed" and pr["merged"]:
+        elif action == "closed" and pr.get("merged"):
             action_type = "MERGE"
         else:
             return jsonify({"message": "Ignored"}), 200
@@ -97,7 +107,10 @@ def webhook():
     else:
         return jsonify({"message": "Event not supported"}), 200
 
+    # -------- SAVE --------
+    print("INSERTING:", event)
     collection.insert_one(event)
+
     return jsonify({"message": "Stored successfully"}), 200
 
 
@@ -109,5 +122,6 @@ def latest_events():
     ])
 
 
+# -------------------- Run --------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
